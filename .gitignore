@@ -1,0 +1,5 @@
+_build
+a.out
+runtime.s
+program.s
+*.o
