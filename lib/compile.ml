@@ -1,3 +1,6 @@
+(* open S_exp *)
+(* open Shared.Directive *)
+
 let compile (program: string) : string =
   String.concat "\n" [
     "global _entry";
@@ -5,6 +8,7 @@ let compile (program: string) : string =
     Printf.sprintf "    mov rax, %s" program;
     "    ret"
   ]
+
 
 let compile_to_file (program: string): unit = 
   let file = open_out "program.s" in
@@ -14,7 +18,7 @@ let compile_to_file (program: string): unit =
 let compile_and_run (program: string): string =
   compile_to_file program;
   let _ = Unix.system "nasm program.s -f macho64" in
-  let _ = Unix.system "clang -arch x86_64 program.o runtime.c" in
+  let _ = Unix.system "clang -arch x86_64 program.o lib/runtime/runtime.c" in
   let input = Unix.open_process_in "./a.out" in
   let response = input_line input in
   close_in input; response

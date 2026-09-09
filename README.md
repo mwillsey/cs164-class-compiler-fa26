@@ -47,4 +47,4 @@ clang -arch x86_64 runtime.c program.o
 
 Ignore the `dune` stuff for now, we will get to the bits about how to actually write OCaml later.
 
-To run, do `dune utop`, then `open Cs164.Compile`, then `compile_and_run "50"`. 
+To run, do `dune utop`, then `open Lib.Compile`, then `compile_and_run "50"`. 

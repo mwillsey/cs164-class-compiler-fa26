@@ -1,0 +1,25 @@
+(data_only_dirs runtime)
+
+(rule
+ (deps
+  (source_tree runtime))
+ (targets runtime.o)
+ (action
+  (no-infer
+   (progn
+    (chdir
+     runtime
+     (run make))
+    (copy runtime/runtime.o runtime.o)))))
+
+(library
+ (name lib)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq ppx_inline_test ppx_let ppx_blob))
+ (preprocessor_deps runtime.o)
+ (libraries shared))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

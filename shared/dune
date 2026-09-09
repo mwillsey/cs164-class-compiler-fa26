@@ -1,0 +1,5 @@
+(library
+ (name shared)
+ (preprocess
+  (pps ppx_let))
+ (libraries s_exp core core_unix.command_unix shexp.process yojson))
