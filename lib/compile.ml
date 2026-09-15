@@ -3,9 +3,9 @@ open Shared.Directive
 
 let rec compile_exp (exp: s_exp): directive list =
   match exp with
-  Num n -> [Mov (Reg Rax, Imm n)]
-  | Lst [Sym "add1"; l] -> 
-    compile_exp l @ [ Add (Reg Rax, Imm 1) ]
+  | Num n               -> [Mov (Reg Rax, Imm n)]
+  | Lst [Sym "add1"; l] -> compile_exp l @ [ Add (Reg Rax, Imm 1) ]
+  | Lst [Sym "sub1"; l] -> compile_exp l @ [ Sub (Reg Rax, Imm 1) ]
   | _ -> failwith "I can't handle that sexp"
 
 let compile (program: s_exp) : string =
@@ -28,3 +28,16 @@ let compile_and_run (program: string): string =
   let input = Unix.open_process_in "./a.out" in
   let response = input_line input in
   close_in input; response
+
+open Interp
+
+let difftest (examples: string list) =
+  List.for_all (fun s -> compile_and_run s = interp s) examples
+
+let test () =
+  difftest [
+    "1";
+    "-8";
+    "(add1 (add1 14))";
+    "(sub1 0)"
+  ] 
