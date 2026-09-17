@@ -1,11 +1,21 @@
 open S_exp
 open Shared.Directive
 
+let num_shift = 2
+let num_mask = 0b11
+let num_tag = 0b00
+
+let bool_shift = 7
+let bool_mask = 0b1111111
+let bool_tag = 0b0011111
+
 let rec compile_exp (exp: s_exp): directive list =
   match exp with
-  | Num n               -> [Mov (Reg Rax, Imm n)]
-  | Lst [Sym "add1"; l] -> compile_exp l @ [ Add (Reg Rax, Imm 1) ]
-  | Lst [Sym "sub1"; l] -> compile_exp l @ [ Sub (Reg Rax, Imm 1) ]
+  | Num n               -> [Mov (Reg Rax, Imm (n lsl num_shift))]
+  | Lst [Sym "add1"; l] -> compile_exp l @ [ Add (Reg Rax, Imm (1 lsl num_shift)) ]
+  | Lst [Sym "sub1"; l] -> compile_exp l @ [ Sub (Reg Rax, Imm (1 lsl num_shift)) ]
+  | Sym "true" -> [ Mov (Reg Rax, Imm ((1 lsl bool_shift) lor bool_tag))]
+  | Sym "false" -> [ Mov (Reg Rax, Imm ((0 lsl bool_shift) lor bool_tag))]
   | _ -> failwith "I can't handle that sexp"
 
 let compile (program: s_exp) : string =
