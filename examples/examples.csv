@@ -1,0 +1,9 @@
+5              , 5
+(add1 1)       , 2
+(add1 (sub1 2)), 2
+(not false)    , true
+(not 0)        , false
+(zero? 0)      , true
+(zero? false)  , false
+(num? 0)       , true
+(num? (not 0)) , false

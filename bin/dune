@@ -1,0 +1,32 @@
+(library
+ (name hw_infra)
+ (modules hw_infra)
+ (libraries shared lib))
+
+(executable
+ (name interp)
+ (modules interp)
+ (libraries hw_infra shared lib))
+
+(executable
+ (name compile)
+ (modules compile)
+ (libraries hw_infra shared lib))
+
+(executable
+ (name test)
+ (modules test)
+ (libraries hw_infra shared lib))
+
+(rule
+ (alias runtest)
+ (deps
+  test.exe
+  (glob_files ../data/*)
+  (glob_files ../examples/examples.csv)
+  (glob_files ../examples/*.lisp)
+  (glob_files ../examples/*.out)
+  (glob_files ../examples/*.err)
+  (glob_files ../examples/*.in))
+ (action
+  (run ./test.exe)))

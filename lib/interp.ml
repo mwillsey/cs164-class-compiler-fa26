@@ -28,5 +28,5 @@ let string_of_value (v: value): string =
   Number n -> string_of_int n
   | Boolean b -> string_of_bool b
 
-let interp (program: string): string =
-  program |> parse |> interp_exp |> string_of_value
+let interp (program: s_exp): string =
+  program |> interp_exp |> string_of_value
