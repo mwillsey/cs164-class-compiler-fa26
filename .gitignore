@@ -3,3 +3,4 @@ a.out
 runtime.s
 program.s
 *.o
+output/

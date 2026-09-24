@@ -7,3 +7,5 @@
 (zero? false)  , false
 (num? 0)       , true
 (num? (not 0)) , false
+(if 0 1 2)     , 1
+(if 0 (if 0 1 2) 3), 1
