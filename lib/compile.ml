@@ -32,7 +32,6 @@ let gensym : string -> string =
     counter := !counter + 1;
     symbol
 
-
 let rec compile_exp (exp : s_exp) : directive list =
   match exp with
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
@@ -53,13 +52,14 @@ let rec compile_exp (exp : s_exp) : directive list =
       let label_then = gensym "then" in
       let label_done = gensym "done" in
       compile_exp e_cond
-      @ [ Cmp (Reg Rax, operand_of_bool false); Je label_else]
+      @ [ Cmp (Reg Rax, operand_of_bool false); Je label_else ]
       @ [ Label label_then ] @ compile_exp e_then @ [ Jmp label_done ]
-      @ [ Label label_else ] @ compile_exp e_else 
-      @ [ Label label_done ]
-  | Lst [ Sym "+"; a; b] ->
-    compile_exp a @ [ Mov (Reg R8, Reg Rax) ] @
-    compile_exp b @ [ Add (Reg Rax, Reg R8) ]
+      @ [ Label label_else ] @ compile_exp e_else @ [ Label label_done ]
+  | Lst [ Sym "+"; a; b ] ->
+      compile_exp a
+      @ [ Mov (Reg R8, Reg Rax) ]
+      @ compile_exp b
+      @ [ Add (Reg Rax, Reg R8) ]
   | _ -> failwith "I can't handle that sexp"
 
 let compile (program : s_exp) : directive list =
