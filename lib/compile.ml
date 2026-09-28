@@ -32,21 +32,21 @@ let gensym : string -> string =
     counter := !counter + 1;
     symbol
 
+(* compiles the primitive assuming its arguments are already in rax *)
+let compile_primitive = function
+  | "add1" -> [ Add (Reg Rax, operand_of_num 1) ]
+  | "sub1" -> [ Sub (Reg Rax, operand_of_num 1) ]
+  | "not" -> [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
+  | "zero?" -> [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
+  | "num?" ->
+      [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ] @ zf_to_bool
+  | p -> failwith ("unexpected prim " ^ p)
+
 let rec compile_exp (exp : s_exp) : directive list =
   match exp with
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
-  | Lst [ Sym "add1"; l ] -> compile_exp l @ [ Add (Reg Rax, operand_of_num 1) ]
-  | Lst [ Sym "sub1"; l ] -> compile_exp l @ [ Sub (Reg Rax, operand_of_num 1) ]
   | Sym "true" -> [ Mov (Reg Rax, operand_of_bool true) ]
   | Sym "false" -> [ Mov (Reg Rax, operand_of_bool false) ]
-  | Lst [ Sym "not"; l ] ->
-      compile_exp l @ [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
-  | Lst [ Sym "zero?"; l ] ->
-      compile_exp l @ [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
-  | Lst [ Sym "num?"; arg ] ->
-      compile_exp arg
-      @ [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ]
-      @ zf_to_bool
   | Lst [ Sym "if"; e_cond; e_then; e_else ] ->
       let label_else = gensym "else" in
       let label_then = gensym "then" in
@@ -60,6 +60,7 @@ let rec compile_exp (exp : s_exp) : directive list =
       @ [ Mov (Reg R8, Reg Rax) ]
       @ compile_exp b
       @ [ Add (Reg Rax, Reg R8) ]
+  | Lst [ Sym prim; arg ] -> compile_exp arg @ compile_primitive prim
   | _ -> failwith "I can't handle that sexp"
 
 let compile (program : s_exp) : directive list =
