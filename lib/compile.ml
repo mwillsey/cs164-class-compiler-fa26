@@ -25,6 +25,14 @@ let zf_to_bool : directive list =
     Or (Reg Rax, Imm bool_tag);
   ]
 
+let lf_to_bool : directive list =
+  [
+    Mov (Reg Rax, Imm 0);
+    Setl (Reg Rax);
+    Shl (Reg Rax, Imm bool_shift);
+    Or (Reg Rax, Imm bool_tag);
+  ]
+
 let gensym : string -> string =
   let counter = ref 0 in
   fun s ->
@@ -33,16 +41,32 @@ let gensym : string -> string =
     symbol
 
 (* compiles the primitive assuming its arguments are already in rax *)
-let compile_primitive = function
+let compile_primitive stack_index = function
   | "add1" -> [ Add (Reg Rax, operand_of_num 1) ]
   | "sub1" -> [ Sub (Reg Rax, operand_of_num 1) ]
   | "not" -> [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
   | "zero?" -> [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
   | "num?" ->
       [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ] @ zf_to_bool
+  | "+" ->
+      [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index)) ]
+      @ [ Add (Reg Rax, Reg R8) ]
+  | "-" ->
+      [ Mov (Reg R8, Reg Rax) ]
+      @ [ Mov (Reg Rax, MemOffset (Reg Rsp, Imm stack_index)) ]
+      @ [ Sub (Reg Rax, Reg R8) ]
+  | "=" ->
+      [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index)) ]
+      @ [ Cmp (Reg Rax, Reg R8) ]
+      @ zf_to_bool
+  | "<" ->
+      [ Mov (Reg R8, Reg Rax) ]
+      @ [ Mov (Reg Rax, MemOffset (Reg Rsp, Imm stack_index)) ]
+      @ [ Cmp (Reg Rax, Reg R8) ]
+      @ lf_to_bool
   | p -> failwith ("unexpected prim " ^ p)
 
-let rec compile_exp (exp : s_exp) : directive list =
+let rec compile_exp (stack_index : int) (exp : s_exp) : directive list =
   match exp with
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
   | Sym "true" -> [ Mov (Reg Rax, operand_of_bool true) ]
@@ -51,18 +75,22 @@ let rec compile_exp (exp : s_exp) : directive list =
       let label_else = gensym "else" in
       let label_then = gensym "then" in
       let label_done = gensym "done" in
-      compile_exp e_cond
+      compile_exp stack_index e_cond
       @ [ Cmp (Reg Rax, operand_of_bool false); Je label_else ]
-      @ [ Label label_then ] @ compile_exp e_then @ [ Jmp label_done ]
-      @ [ Label label_else ] @ compile_exp e_else @ [ Label label_done ]
-  | Lst [ Sym "+"; a; b ] ->
-      compile_exp a
-      @ [ Mov (Reg R8, Reg Rax) ]
-      @ compile_exp b
-      @ [ Add (Reg Rax, Reg R8) ]
-  | Lst [ Sym prim; arg ] -> compile_exp arg @ compile_primitive prim
+      @ [ Label label_then ]
+      @ compile_exp stack_index e_then
+      @ [ Jmp label_done ] @ [ Label label_else ]
+      @ compile_exp stack_index e_else
+      @ [ Label label_done ]
+  | Lst [ Sym prim; a; b ] ->
+      compile_exp stack_index a
+      @ [ Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax) ]
+      @ compile_exp (stack_index - 8) b
+      @ compile_primitive stack_index prim
+  | Lst [ Sym prim; arg ] ->
+      compile_exp stack_index arg @ compile_primitive stack_index prim
   | _ -> failwith "I can't handle that sexp"
 
 let compile (program : s_exp) : directive list =
-  let directives = compile_exp program in
+  let directives = compile_exp (-8) program in
   [ Global "entry"; Label "entry" ] @ directives @ [ Ret ]
