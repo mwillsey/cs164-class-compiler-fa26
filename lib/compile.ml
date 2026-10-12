@@ -8,6 +8,7 @@ let num_tag = 0b00
 let bool_shift = 7
 let bool_mask = 0b1111111
 let bool_tag = 0b0011111
+let pair_tag = 0b010
 
 let operand_of_bool (b : bool) : operand =
   Imm (((if b then 1 else 0) lsl bool_shift) lor bool_tag)
@@ -65,6 +66,17 @@ let compile_primitive stack_index = function
       @ [ Mov (Reg Rax, stack_addr stack_index) ]
       @ [ Cmp (Reg Rax, Reg R8) ]
       @ lf_to_bool
+  | "pair" ->
+      [
+        Mov (Reg R8, stack_addr stack_index);
+        Mov (MemOffset (Reg Rdi, Imm 0), Reg R8);
+        Mov (MemOffset (Reg Rdi, Imm 8), Reg Rax);
+        Mov (Reg Rax, Reg Rdi);
+        Or (Reg Rax, Imm pair_tag);
+        Add (Reg Rdi, Imm 16);
+      ]
+  | "left" -> [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag))) ]
+  | "right" -> [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
   | p -> failwith ("unexpected prim " ^ p)
 
 let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
