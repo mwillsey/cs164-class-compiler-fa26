@@ -6,6 +6,8 @@ type value = Number of int | Boolean of bool | Pair of value * value
 let int_of_value (v : value) : int =
   match v with Number n -> n | _ -> failwith "not a number"
 
+let input_channel = ref stdin
+
 let rec interp_exp (env : value symtab) (exp : s_exp) : value =
   match exp with
   | Num n -> Number n
@@ -42,9 +44,10 @@ let rec interp_exp (env : value symtab) (exp : s_exp) : value =
   | Lst [ Sym "="; a; b ] ->
       let va = interp_exp env a in
       let vb = interp_exp env b in
-      Boolean (va = vb)
+      Boolean (int_of_value va = int_of_value vb)
   | Lst [ Sym "pair"; a; b ] ->
-      let v1, v2 = (interp_exp env a, interp_exp env b) in
+      let v1 = interp_exp env a in
+      let v2 = interp_exp env b in
       Pair (v1, v2)
   | Lst [ Sym "left"; e ] -> (
       match interp_exp env e with
@@ -54,6 +57,7 @@ let rec interp_exp (env : value symtab) (exp : s_exp) : value =
       match interp_exp env e with
       | Pair (_, v2) -> v2
       | _ -> failwith "expected a pair")
+  | Lst [ Sym "read-num" ] -> Number (input_line !input_channel |> int_of_string)
   | _ -> failwith "I can't handle that sexp"
 
 let rec string_of_value (v : value) : string =

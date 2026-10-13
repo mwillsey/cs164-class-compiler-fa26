@@ -36,6 +36,17 @@ void print_value(uint64_t value) {
   }
 }
 
+void error() {
+  printf("ERROR");
+  exit(1);
+}
+
+uint64_t read_num() {
+  int r;
+  scanf("%d", &r);
+  return (uint64_t)(r) << num_shift;
+}
+
 // int64_t entry() { return 4000000000000; }
 extern uint64_t entry(void *heap);
 

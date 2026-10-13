@@ -9,6 +9,7 @@ let bool_shift = 7
 let bool_mask = 0b1111111
 let bool_tag = 0b0011111
 let pair_tag = 0b010
+let heap_mask = 0b111
 
 let operand_of_bool (b : bool) : operand =
   Imm (((if b then 1 else 0) lsl bool_shift) lor bool_tag)
@@ -44,25 +45,52 @@ let gensym : string -> string =
 
 let stack_addr stack_index = MemOffset (Reg Rsp, Imm stack_index)
 
-(* compiles the primitive assuming its arguments are already in rax *)
+let ensure_num op =
+  [
+    Mov (Reg R8, op);
+    And (Reg R8, Imm num_mask);
+    Cmp (Reg R8, Imm num_tag);
+    Jne "error";
+  ]
+
+let ensure_pair op =
+  [
+    Mov (Reg R8, op);
+    And (Reg R8, Imm heap_mask);
+    Cmp (Reg R8, Imm pair_tag);
+    Jne "error";
+  ]
+
+(* compiles the primitive assuming its arguments are already in rax,
+   or else on the stack *)
 let compile_primitive stack_index = function
-  | "add1" -> [ Add (Reg Rax, operand_of_num 1) ]
-  | "sub1" -> [ Sub (Reg Rax, operand_of_num 1) ]
+  | "add1" -> ensure_num (Reg Rax) @ [ Add (Reg Rax, operand_of_num 1) ]
+  | "sub1" -> ensure_num (Reg Rax) @ [ Sub (Reg Rax, operand_of_num 1) ]
   | "not" -> [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
   | "zero?" -> [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
   | "num?" ->
       [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ] @ zf_to_bool
-  | "+" -> [ Mov (Reg R8, stack_addr stack_index) ] @ [ Add (Reg Rax, Reg R8) ]
+  | "+" ->
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, stack_addr stack_index) ]
+      @ [ Add (Reg Rax, Reg R8) ]
   | "-" ->
-      [ Mov (Reg R8, Reg Rax) ]
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, Reg Rax) ]
       @ [ Mov (Reg Rax, stack_addr stack_index) ]
       @ [ Sub (Reg Rax, Reg R8) ]
   | "=" ->
-      [ Mov (Reg R8, stack_addr stack_index) ]
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, stack_addr stack_index) ]
       @ [ Cmp (Reg Rax, Reg R8) ]
       @ zf_to_bool
   | "<" ->
-      [ Mov (Reg R8, Reg Rax) ]
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, Reg Rax) ]
       @ [ Mov (Reg Rax, stack_addr stack_index) ]
       @ [ Cmp (Reg Rax, Reg R8) ]
       @ lf_to_bool
@@ -75,8 +103,12 @@ let compile_primitive stack_index = function
         Or (Reg Rax, Imm pair_tag);
         Add (Reg Rdi, Imm 16);
       ]
-  | "left" -> [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag))) ]
-  | "right" -> [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
+  | "left" ->
+      ensure_pair (Reg Rax)
+      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag))) ]
+  | "right" ->
+      ensure_pair (Reg Rax)
+      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
   | p -> failwith ("unexpected prim " ^ p)
 
 let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
@@ -112,4 +144,4 @@ let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
 
 let compile (program : s_exp) : directive list =
   let directives = compile_exp Symtab.empty (-8) program in
-  [ Global "entry"; Label "entry" ] @ directives @ [ Ret ]
+  [ Global "entry"; Extern "error"; Label "entry" ] @ directives @ [ Ret ]
