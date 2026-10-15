@@ -47,10 +47,12 @@ uint64_t read_num() {
   return (uint64_t)(r) << num_shift;
 }
 
+void print_newline() { printf("\n"); }
+
 // int64_t entry() { return 4000000000000; }
 extern uint64_t entry(void *heap);
 
 int main(int argc, char **argv) {
-  print_value(entry((void *)malloc(4096)));
+  entry((void *)malloc(4096));
   return 0;
 }

@@ -61,6 +61,9 @@ let ensure_pair op =
     Jne "error";
   ]
 
+let align_stack_index stack_index =
+  if stack_index mod 16 = -8 then stack_index else stack_index - 8
+
 (* compiles the primitive assuming its arguments are already in rax,
    or else on the stack *)
 let compile_primitive stack_index = function
@@ -109,6 +112,33 @@ let compile_primitive stack_index = function
   | "right" ->
       ensure_pair (Reg Rax)
       @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
+  | "read-num" ->
+      [
+        Mov (stack_addr stack_index, Reg Rdi);
+        Add (Reg Rsp, Imm (align_stack_index stack_index));
+        Call "read_num";
+        Sub (Reg Rsp, Imm (align_stack_index stack_index));
+        Mov (Reg Rdi, stack_addr stack_index);
+      ]
+  | "newline" ->
+      [
+        Mov (stack_addr stack_index, Reg Rdi);
+        Add (Reg Rsp, Imm (align_stack_index stack_index));
+        Call "print_newline";
+        Sub (Reg Rsp, Imm (align_stack_index stack_index));
+        Mov (Reg Rdi, stack_addr stack_index);
+        Mov (Reg Rax, operand_of_bool true);
+      ]
+  | "print" ->
+      [
+        Mov (stack_addr stack_index, Reg Rdi);
+        Mov (Reg Rdi, Reg Rax);
+        Add (Reg Rsp, Imm (align_stack_index stack_index));
+        Call "print_value";
+        Sub (Reg Rsp, Imm (align_stack_index stack_index));
+        Mov (Reg Rdi, stack_addr stack_index);
+        Mov (Reg Rax, operand_of_bool true);
+      ]
   | p -> failwith ("unexpected prim " ^ p)
 
 let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
@@ -117,6 +147,8 @@ let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
   | Sym "true" -> [ Mov (Reg Rax, operand_of_bool true) ]
   | Sym "false" -> [ Mov (Reg Rax, operand_of_bool false) ]
+  | Lst (Sym "do" :: exps) when List.length exps > 0 ->
+      List.concat_map (compile_exp env stack_index) exps
   | Lst [ Sym "if"; e_cond; e_then; e_else ] ->
       let label_else = gensym "else" in
       let label_then = gensym "then" in
@@ -144,4 +176,12 @@ let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
 
 let compile (program : s_exp) : directive list =
   let directives = compile_exp Symtab.empty (-8) program in
-  [ Global "entry"; Extern "error"; Label "entry" ] @ directives @ [ Ret ]
+  [
+    Global "entry";
+    Extern "error";
+    Extern "read_num";
+    Extern "print_newline";
+    Extern "print_value";
+    Label "entry";
+  ]
+  @ directives @ [ Ret ]
