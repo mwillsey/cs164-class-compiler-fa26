@@ -1,5 +1,6 @@
 open S_exp
 open Shared.Directive
+open Symtab
 open Util
 open Shared.Error
 
@@ -176,8 +177,9 @@ let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
   | Lst [ Sym prim ] -> compile_primitive stack_index prim
   | _ -> raise (Stuck exp)
 
-let compile (program : s_exp) : directive list =
-  let directives = compile_exp Symtab.empty (-8) program in
+let compile (program : s_exp list) : directive list =
+  let defns, body = defns_and_body program in
+  let directives = compile_exp Symtab.empty (-8) body in
   [
     Global "entry";
     Extern "error";

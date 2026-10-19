@@ -1,14 +1,5 @@
 type register = Rax | R8 | R9 | R10 | R11 | Rsp | Rdi | Rsi | Rdx | Rbp
 
-let macos =
-  try
-    let ic = Unix.open_process_in "uname -s" in
-    let res = input_line ic in
-    close_in ic;
-    String.trim res = "Darwin"
-  with _ -> false
-
-
 let string_of_register ?(byte = false) (reg : register) =
   match (reg, byte) with
   | Rax, false ->

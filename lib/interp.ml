@@ -1,4 +1,5 @@
 open S_exp
+open Symtab
 open Util
 
 type value = Number of int | Boolean of bool | Pair of value * value
@@ -78,12 +79,14 @@ let rec interp_exp (env : value symtab) (exp : s_exp) : value =
       List.hd rev_exps
   | _ -> failwith "I can't handle that sexp"
 
-let interp (program : s_exp) : unit = interp_exp Symtab.empty program |> ignore
+let interp (program : s_exp list) : unit =
+  let defns, body = defns_and_body program in
+  interp_exp Symtab.empty body |> ignore
 
 (** [interp_io prog input] evaluates the program [prog] using [interp_expr],
     reading input from the string [input] and returning the output as a string.
 *)
-let interp_io (prog : s_exp) input =
+let interp_io (prog : s_exp list) input =
   let input_pipe_ex, input_pipe_en = Unix.pipe () in
   let output_pipe_ex, output_pipe_en = Unix.pipe () in
   input_channel := Unix.in_channel_of_descr input_pipe_ex;

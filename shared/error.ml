@@ -4,6 +4,6 @@ exception UndefinedBehavior of string
 let () =
   Printexc.register_printer (function
     | Stuck e ->
-        Some (Printf.sprintf "Stuck[%s]" (S_exp.show e))
+        Some (Printf.sprintf "Stuck[%s]" (S_exp.string_of_s_exp e))
     | _ ->
         None)
