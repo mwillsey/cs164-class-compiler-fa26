@@ -1,6 +1,7 @@
 open S_exp
 open Shared.Directive
 open Util
+open Shared.Error
 
 let num_shift = 2
 let num_mask = 0b11
@@ -172,7 +173,8 @@ let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
       @ compile_primitive stack_index prim
   | Lst [ Sym prim; arg ] ->
       compile_exp env stack_index arg @ compile_primitive stack_index prim
-  | _ -> failwith "I can't handle that sexp"
+  | Lst [ Sym prim ] -> compile_primitive stack_index prim
+  | _ -> raise (Stuck exp)
 
 let compile (program : s_exp) : directive list =
   let directives = compile_exp Symtab.empty (-8) program in

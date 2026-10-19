@@ -7,6 +7,7 @@
 (print (zero? false))  , false
 (print (num? 0))       , true
 (print (num? (not 0))) , false
+(print (- 3 2)), 1
 (print (if 0 1 2))     , 1
 (print (if 0 (if 0 1 2) 3)), 1
 (print (left (pair 1 2))), 1
@@ -17,3 +18,4 @@
 (print (add1 false))             , ERROR
 (print (< 1 true))               , ERROR
 (print (- (pair 1 2) 1))         , ERROR
+(print (- (read-num) 3)), 4, 1
