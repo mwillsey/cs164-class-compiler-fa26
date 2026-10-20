@@ -143,43 +143,47 @@ let compile_primitive stack_index = function
       ]
   | p -> failwith ("unexpected prim " ^ p)
 
-let rec compile_exp (env : int symtab) (stack_index : int) (exp : s_exp) :
+let rec compile_exp defns (env : int symtab) (stack_index : int) (exp : s_exp) :
     directive list =
   match exp with
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
   | Sym "true" -> [ Mov (Reg Rax, operand_of_bool true) ]
   | Sym "false" -> [ Mov (Reg Rax, operand_of_bool false) ]
   | Lst (Sym "do" :: exps) when List.length exps > 0 ->
-      List.concat_map (compile_exp env stack_index) exps
+      List.concat_map (compile_exp defns env stack_index) exps
   | Lst [ Sym "if"; e_cond; e_then; e_else ] ->
       let label_else = gensym "else" in
       let label_then = gensym "then" in
       let label_done = gensym "done" in
-      compile_exp env stack_index e_cond
+      compile_exp defns env stack_index e_cond
       @ [ Cmp (Reg Rax, operand_of_bool false); Je label_else ]
       @ [ Label label_then ]
-      @ compile_exp env stack_index e_then
+      @ compile_exp defns env stack_index e_then
       @ [ Jmp label_done ] @ [ Label label_else ]
-      @ compile_exp env stack_index e_else
+      @ compile_exp defns env stack_index e_else
       @ [ Label label_done ]
   | Lst [ Sym "let"; Lst [ Lst [ Sym var; e ] ]; body ] ->
-      compile_exp env stack_index e
+      compile_exp defns env stack_index e
       @ [ Mov (stack_addr stack_index, Reg Rax) ]
-      @ compile_exp (Symtab.add var stack_index env) (stack_index - 8) body
+      @ compile_exp defns
+          (Symtab.add var stack_index env)
+          (stack_index - 8) body
   | Sym var -> [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
   | Lst [ Sym prim; a; b ] ->
-      compile_exp env stack_index a
+      compile_exp defns env stack_index a
       @ [ Mov (stack_addr stack_index, Reg Rax) ]
-      @ compile_exp env (stack_index - 8) b
+      @ compile_exp defns env (stack_index - 8) b
       @ compile_primitive stack_index prim
   | Lst [ Sym prim; arg ] ->
-      compile_exp env stack_index arg @ compile_primitive stack_index prim
+      compile_exp defns env stack_index arg @ compile_primitive stack_index prim
   | Lst [ Sym prim ] -> compile_primitive stack_index prim
   | _ -> raise (Stuck exp)
 
+let compile_defn defns defn : directive list = 0
+
 let compile (program : s_exp list) : directive list =
   let defns, body = defns_and_body program in
-  let directives = compile_exp Symtab.empty (-8) body in
+  let directives = compile_exp defns Symtab.empty (-8) body in
   [
     Global "entry";
     Extern "error";
@@ -189,3 +193,4 @@ let compile (program : s_exp list) : directive list =
     Label "entry";
   ]
   @ directives @ [ Ret ]
+  @ List.concat_map (compile_defn defns) defns
