@@ -1,8 +1,8 @@
 open S_exp
-open Symtab
 open Util
 
 type value = Number of int | Boolean of bool | Pair of value * value
+type environment = value Symtab.t
 
 let int_of_value (v : value) : int =
   match v with Number n -> n | _ -> failwith "not a number"
@@ -17,8 +17,8 @@ let rec string_of_value (v : value) : string =
   | Pair (v1, v2) ->
       Printf.sprintf "(pair %s %s)" (string_of_value v1) (string_of_value v2)
 
-let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
-    value =
+let rec interp_exp (defns : defn list) (env : environment) (exp : s_exp) : value
+    =
   match exp with
   | Num n -> Number n
   | Lst [ Sym "add1"; l ] -> Number (int_of_value (interp_exp defns env l) + 1)
@@ -30,7 +30,7 @@ let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
       let defn = get_defn defns f in
       if List.length args = List.length defn.args then
         let vals = List.map (interp_exp defns env) args in
-        let fenv = (List.combine defn.args vals) |> List.to_seq |> Symtab.of_seq in
+        let fenv = List.combine defn.args vals |> List.to_seq |> Symtab.of_seq in
         interp_exp defns fenv defn.body
       else failwith "wrong num of args"
   | Lst [ Sym "let"; Lst [ Lst [ Sym var; e ] ]; body ] ->
