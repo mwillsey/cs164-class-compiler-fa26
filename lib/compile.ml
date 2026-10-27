@@ -163,7 +163,7 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : s_exp)
   | Lst (Sym f :: args) when is_defn defns f ->
       let defn = get_defn defns f in
       if List.length args = List.length defn.args then
-        (* if is_tail then
+        if is_tail then
           let compiled_args =
             args
             |> List.mapi (fun i arg ->
@@ -171,22 +171,31 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : s_exp)
                 @ [ Mov (stack_addr (stack_index - (8 * i)), Reg Rax) ])
             |> List.concat
           in
+          let moved_args =
+            args
+            |> List.mapi (fun i _ ->
+                [
+                  Mov (Reg R8, stack_addr (stack_index - (8 * i)));
+                  Mov (stack_addr ((i + 1) * -8), Reg R8);
+                ])
+            |> List.concat
+          in
           compiled_args @ moved_args @ [ Jmp (function_label f) ]
-        else *)
-        let stack_base = align_stack_index (stack_index + 8) in
-        let compiled_args =
-          args
-          |> List.mapi (fun i arg ->
-              compile_exp defns env (stack_base - (8 * (i + 2))) arg false
-              @ [ Mov (stack_addr (stack_base - (8 * (i + 2))), Reg Rax) ])
-          |> List.concat
-        in
-        compiled_args
-        @ [
-            Add (Reg Rsp, Imm stack_base);
-            Call (function_label f);
-            Sub (Reg Rsp, Imm stack_base);
-          ]
+        else
+          let stack_base = align_stack_index (stack_index + 8) in
+          let compiled_args =
+            args
+            |> List.mapi (fun i arg ->
+                compile_exp defns env (stack_base - (8 * (i + 2))) arg false
+                @ [ Mov (stack_addr (stack_base - (8 * (i + 2))), Reg Rax) ])
+            |> List.concat
+          in
+          compiled_args
+          @ [
+              Add (Reg Rsp, Imm stack_base);
+              Call (function_label f);
+              Sub (Reg Rsp, Imm stack_base);
+            ]
       else failwith "wrong num of args"
   | Lst (Sym "do" :: exps) when List.length exps > 0 ->
       List.mapi
