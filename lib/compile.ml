@@ -1,6 +1,5 @@
-open S_exp
+open Ast
 open Shared.Directive
-open Util
 open Shared.Error
 
 let num_shift = 2
@@ -79,53 +78,8 @@ let align_stack_index stack_index =
 
 (* compiles the primitive assuming its arguments are already in rax,
    or else on the stack *)
-let compile_primitive stack_index = function
-  | "add1" -> ensure_num (Reg Rax) @ [ Add (Reg Rax, operand_of_num 1) ]
-  | "sub1" -> ensure_num (Reg Rax) @ [ Sub (Reg Rax, operand_of_num 1) ]
-  | "not" -> [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
-  | "zero?" -> [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
-  | "num?" ->
-      [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ] @ zf_to_bool
-  | "+" ->
-      ensure_num (stack_addr stack_index)
-      @ ensure_num (Reg Rax)
-      @ [ Mov (Reg R8, stack_addr stack_index) ]
-      @ [ Add (Reg Rax, Reg R8) ]
-  | "-" ->
-      ensure_num (stack_addr stack_index)
-      @ ensure_num (Reg Rax)
-      @ [ Mov (Reg R8, Reg Rax) ]
-      @ [ Mov (Reg Rax, stack_addr stack_index) ]
-      @ [ Sub (Reg Rax, Reg R8) ]
-  | "=" ->
-      ensure_num (stack_addr stack_index)
-      @ ensure_num (Reg Rax)
-      @ [ Mov (Reg R8, stack_addr stack_index) ]
-      @ [ Cmp (Reg Rax, Reg R8) ]
-      @ zf_to_bool
-  | "<" ->
-      ensure_num (stack_addr stack_index)
-      @ ensure_num (Reg Rax)
-      @ [ Mov (Reg R8, Reg Rax) ]
-      @ [ Mov (Reg Rax, stack_addr stack_index) ]
-      @ [ Cmp (Reg Rax, Reg R8) ]
-      @ lf_to_bool
-  | "pair" ->
-      [
-        Mov (Reg R8, stack_addr stack_index);
-        Mov (MemOffset (Reg Rdi, Imm 0), Reg R8);
-        Mov (MemOffset (Reg Rdi, Imm 8), Reg Rax);
-        Mov (Reg Rax, Reg Rdi);
-        Or (Reg Rax, Imm pair_tag);
-        Add (Reg Rdi, Imm 16);
-      ]
-  | "left" ->
-      ensure_pair (Reg Rax)
-      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag))) ]
-  | "right" ->
-      ensure_pair (Reg Rax)
-      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
-  | "read-num" ->
+let compile_prim0 stack_index = function
+  | ReadNum ->
       [
         Mov (stack_addr stack_index, Reg Rdi);
         Add (Reg Rsp, Imm (align_stack_index stack_index));
@@ -133,7 +87,7 @@ let compile_primitive stack_index = function
         Sub (Reg Rsp, Imm (align_stack_index stack_index));
         Mov (Reg Rdi, stack_addr stack_index);
       ]
-  | "newline" ->
+  | Newline ->
       [
         Mov (stack_addr stack_index, Reg Rdi);
         Add (Reg Rsp, Imm (align_stack_index stack_index));
@@ -142,7 +96,21 @@ let compile_primitive stack_index = function
         Mov (Reg Rdi, stack_addr stack_index);
         Mov (Reg Rax, operand_of_bool true);
       ]
-  | "print" ->
+
+let compile_prim1 stack_index = function
+  | Add1 -> ensure_num (Reg Rax) @ [ Add (Reg Rax, operand_of_num 1) ]
+  | Sub1 -> ensure_num (Reg Rax) @ [ Sub (Reg Rax, operand_of_num 1) ]
+  | Not -> [ Cmp (Reg Rax, operand_of_bool false) ] @ zf_to_bool
+  | IsZero -> [ Cmp (Reg Rax, operand_of_num 0) ] @ zf_to_bool
+  | IsNum ->
+      [ And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag) ] @ zf_to_bool
+  | Left ->
+      ensure_pair (Reg Rax)
+      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag))) ]
+  | Right ->
+      ensure_pair (Reg Rax)
+      @ [ Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8))) ]
+  | Print ->
       [
         Mov (stack_addr stack_index, Reg Rdi);
         Mov (Reg Rdi, Reg Rax);
@@ -152,15 +120,51 @@ let compile_primitive stack_index = function
         Mov (Reg Rdi, stack_addr stack_index);
         Mov (Reg Rax, operand_of_bool true);
       ]
-  | p -> failwith ("unexpected prim " ^ p)
+  | IsPair -> failwith "unexpected prim pair?"
+  | IsEmpty -> failwith "unexpected prim empty?"
 
-let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : s_exp)
+let compile_prim2 stack_index = function
+  | Plus ->
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, stack_addr stack_index) ]
+      @ [ Add (Reg Rax, Reg R8) ]
+  | Minus ->
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, Reg Rax) ]
+      @ [ Mov (Reg Rax, stack_addr stack_index) ]
+      @ [ Sub (Reg Rax, Reg R8) ]
+  | Eq ->
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, stack_addr stack_index) ]
+      @ [ Cmp (Reg Rax, Reg R8) ]
+      @ zf_to_bool
+  | Lt ->
+      ensure_num (stack_addr stack_index)
+      @ ensure_num (Reg Rax)
+      @ [ Mov (Reg R8, Reg Rax) ]
+      @ [ Mov (Reg Rax, stack_addr stack_index) ]
+      @ [ Cmp (Reg Rax, Reg R8) ]
+      @ lf_to_bool
+  | Pair ->
+      [
+        Mov (Reg R8, stack_addr stack_index);
+        Mov (MemOffset (Reg Rdi, Imm 0), Reg R8);
+        Mov (MemOffset (Reg Rdi, Imm 8), Reg Rax);
+        Mov (Reg Rax, Reg Rdi);
+        Or (Reg Rax, Imm pair_tag);
+        Add (Reg Rdi, Imm 16);
+      ]
+
+let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
     (is_tail : bool) : directive list =
   match exp with
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
-  | Sym "true" -> [ Mov (Reg Rax, operand_of_bool true) ]
-  | Sym "false" -> [ Mov (Reg Rax, operand_of_bool false) ]
-  | Lst (Sym f :: args) when is_defn defns f ->
+  | True -> [ Mov (Reg Rax, operand_of_bool true) ]
+  | False -> [ Mov (Reg Rax, operand_of_bool false) ]
+  | Call (f, args) when is_defn defns f ->
       let defn = get_defn defns f in
       if List.length args = List.length defn.args then
         if is_tail then
@@ -197,14 +201,14 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : s_exp)
               Sub (Reg Rsp, Imm stack_base);
             ]
       else failwith "wrong num of args"
-  | Lst (Sym "do" :: exps) when List.length exps > 0 ->
+  | Do exps when List.length exps > 0 ->
       List.mapi
         (fun i exp ->
           compile_exp defns env stack_index exp
             (if i = List.length exps - 1 then is_tail else false))
         exps
       |> List.concat
-  | Lst [ Sym "if"; e_cond; e_then; e_else ] ->
+  | If (e_cond, e_then, e_else) ->
       let label_else = gensym "else" in
       let label_then = gensym "then" in
       let label_done = gensym "done" in
@@ -215,23 +219,23 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : s_exp)
       @ [ Jmp label_done ] @ [ Label label_else ]
       @ compile_exp defns env stack_index e_else is_tail
       @ [ Label label_done ]
-  | Lst [ Sym "let"; Lst [ Lst [ Sym var; e ] ]; body ] ->
+  | Let (var, e, body) ->
       compile_exp defns env stack_index e false
       @ [ Mov (stack_addr stack_index, Reg Rax) ]
       @ compile_exp defns
           (Symtab.add var stack_index env)
           (stack_index - 8) body is_tail
-  | Sym var -> [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
-  | Lst [ Sym prim; a; b ] ->
+  | Var var -> [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
+  | Prim2 (prim, a, b) ->
       compile_exp defns env stack_index a false
       @ [ Mov (stack_addr stack_index, Reg Rax) ]
       @ compile_exp defns env (stack_index - 8) b false
-      @ compile_primitive stack_index prim
-  | Lst [ Sym prim; arg ] ->
+      @ compile_prim2 stack_index prim
+  | Prim1 (prim, arg) ->
       compile_exp defns env stack_index arg false
-      @ compile_primitive stack_index prim
-  | Lst [ Sym prim ] -> compile_primitive stack_index prim
-  | _ -> raise (Stuck exp)
+      @ compile_prim1 stack_index prim
+  | Prim0 prim -> compile_prim0 stack_index prim
+  | _ -> raise (Stuck (s_exp_of_expr exp))
 
 let compile_defn defns defn : directive list =
   let ftab =
@@ -243,9 +247,9 @@ let compile_defn defns defn : directive list =
   @ compile_exp defns ftab (-8 * (List.length defn.args + 1)) defn.body true
   @ [ Ret ]
 
-let compile (program : s_exp list) : directive list =
-  let defns, body = defns_and_body program in
-  let directives = compile_exp defns Symtab.empty (-8) body true in
+let compile (program : program) : directive list =
+  let defns = program.defns in
+  let directives = compile_exp defns Symtab.empty (-8) program.body true in
   [
     Global "entry";
     Extern "error";

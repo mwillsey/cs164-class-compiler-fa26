@@ -1,0 +1,3 @@
+(library
+ (name lisp_syntax)
+ (libraries s_exp ast))

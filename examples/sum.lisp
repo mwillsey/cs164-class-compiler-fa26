@@ -3,4 +3,4 @@
     0
     (+ n (sum (sub1 n)))))
 
-(print (sum 1000000))
+(print (sum 10000))

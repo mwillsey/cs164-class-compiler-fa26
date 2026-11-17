@@ -1,22 +1,22 @@
 (library
  (name hw_infra)
  (modules hw_infra)
- (libraries shared lib))
+ (libraries shared lisp_syntax lib))
 
 (executable
  (name interp)
  (modules interp)
- (libraries hw_infra shared lib))
+ (libraries hw_infra shared lisp_syntax lib))
 
 (executable
  (name compile)
  (modules compile)
- (libraries hw_infra shared lib))
+ (libraries hw_infra shared lisp_syntax lib))
 
 (executable
  (name test)
  (modules test)
- (libraries hw_infra shared lib))
+ (libraries hw_infra shared lisp_syntax lib))
 
 (rule
  (alias runtest)
