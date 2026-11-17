@@ -164,7 +164,7 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
   | True -> [ Mov (Reg Rax, operand_of_bool true) ]
   | False -> [ Mov (Reg Rax, operand_of_bool false) ]
-  | Call (f, args) when is_defn defns f ->
+  (* | Call (f, args) when is_defn defns f ->
       let defn = get_defn defns f in
       if List.length args = List.length defn.args then
         if is_tail then
@@ -200,7 +200,7 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
               Call (function_label f);
               Sub (Reg Rsp, Imm stack_base);
             ]
-      else failwith "wrong num of args"
+      else failwith "wrong num of args" *)
   | Do exps when List.length exps > 0 ->
       List.mapi
         (fun i exp ->

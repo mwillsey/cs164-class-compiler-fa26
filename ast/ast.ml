@@ -25,7 +25,7 @@ type expr =
   | Do of expr list
   | Num of int
   | Var of string
-  | Call of string * expr list
+  | Call of expr * expr list
   | True
   | False
   | Nil
@@ -65,7 +65,7 @@ let rec s_exp_of_expr = function
       Lst
         [ Sym "let"; Lst [ Lst [ Sym v; s_exp_of_expr e1 ] ]; s_exp_of_expr e2 ]
   | Do exps -> Lst (Sym "do" :: List.map s_exp_of_expr exps)
-  | Call (f, exps) -> Lst (Sym f :: List.map s_exp_of_expr exps)
+  | Call (f, exps) -> Lst (s_exp_of_expr f :: List.map s_exp_of_expr exps)
   | True -> Sym "true"
   | False -> Sym "false"
   | Nil -> Lst []

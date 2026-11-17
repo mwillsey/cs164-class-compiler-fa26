@@ -61,7 +61,7 @@ let rec expr_of_s_exp : s_exp -> expr =
         ( Option.get (prim2_of_string prim),
           expr_of_s_exp arg1,
           expr_of_s_exp arg2 )
-  | Lst (Sym f :: args) -> Call (f, List.map expr_of_s_exp args)
+  | Lst (f :: args) -> Call (expr_of_s_exp f, List.map expr_of_s_exp args)
   | e -> raise (ParseError e)
   end
 

@@ -1,7 +1,12 @@
 open Ast
 open Util
 
-type value = Number of int | Boolean of bool | Pair of value * value
+type value =
+  | Number of int
+  | Boolean of bool
+  | Pair of value * value
+  | Function of string
+
 type environment = value Symtab.t
 
 let int_of_value (v : value) : int =
@@ -16,6 +21,7 @@ let rec string_of_value (v : value) : string =
   | Boolean b -> string_of_bool b
   | Pair (v1, v2) ->
       Printf.sprintf "(pair %s %s)" (string_of_value v1) (string_of_value v2)
+  | Function _ -> "<function>"
 
 let interp_prim0 = function
   | ReadNum -> Number (input_line !input_channel |> int_of_string)
@@ -53,16 +59,21 @@ let rec interp_exp (defns : defn list) (env : environment) (exp : expr) : value
   | Num n -> Number n
   | True -> Boolean true
   | False -> Boolean false
-  | Var x -> Symtab.find x env
-  | Call (f, args) when is_defn defns f ->
-      let defn = get_defn defns f in
-      if List.length args = List.length defn.args then
-        let vals = List.map (interp_exp defns env) args in
-        let fenv =
-          List.combine defn.args vals |> List.to_seq |> Symtab.of_seq
-        in
-        interp_exp defns fenv defn.body
-      else failwith "wrong num of args"
+  | Var x when Symtab.mem x env -> Symtab.find x env
+  | Var x when is_defn defns x -> Function x
+  | Call (f, args) -> (
+      let fv = interp_exp defns env f in
+      match fv with
+      | Function f ->
+          let defn = get_defn defns f in
+          if List.length args = List.length defn.args then
+            let vals = List.map (interp_exp defns env) args in
+            let fenv =
+              List.combine defn.args vals |> List.to_seq |> Symtab.of_seq
+            in
+            interp_exp defns fenv defn.body
+          else failwith "wrong num of args"
+      | _ -> failwith "not a function")
   | Let (var, e, body) ->
       let e_value = interp_exp defns env e in
       interp_exp defns (Symtab.add var e_value env) body
@@ -84,6 +95,19 @@ let rec interp_exp (defns : defn list) (env : environment) (exp : expr) : value
   | _ -> failwith "I can't handle that sexp"
 
 let interp (program : program) : unit =
+  (* let program = Constant_fold.fold_program program in
+  let s_exp_of_defn (d : defn) =
+    S_exp.Lst
+      [
+        S_exp.Sym "define";
+        S_exp.Lst (S_exp.Sym d.name :: List.map (fun a -> S_exp.Sym a) d.args);
+        s_exp_of_expr d.body;
+      ]
+  in
+  print_string
+    (List.map s_exp_of_defn program.defns @ [ s_exp_of_expr program.body ]
+    |> List.map S_exp.string_of_s_exp
+    |> String.concat "\n"); *)
   interp_exp program.defns Symtab.empty program.body |> ignore
 
 (** [interp_io prog input] evaluates the program [prog] using [interp_expr],

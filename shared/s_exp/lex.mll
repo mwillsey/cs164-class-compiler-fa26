@@ -8,6 +8,8 @@
 rule token = parse
 | [' ' '\t' '\n'] (* also ignore newlines, not only whitespace and tabs *)
     { token lexbuf }
+| ';' [^ '\n']*
+    { token lexbuf }
 | '('
     { LPAREN }
 | ')'
@@ -16,7 +18,7 @@ rule token = parse
     { DOTS }
 | '-'? ['0'-'9']+ as i
     { NUMBER (int_of_string i) }
-| ['a'-'z' 'A'-'Z' '+' '-' '*' '<' '=' '/' '>' '?']+['a'-'z' 'A'-'Z' '+' '-' '*'  '<' '=' '/' '>' '?' '0'-'9']* as s
+| ['a'-'z' 'A'-'Z' '_' '+' '-' '*' '<' '=' '/' '>' '?']+['a'-'z' 'A'-'Z' '_' '+' '-' '*'  '<' '=' '/' '>' '?' '0'-'9']* as s
     { SYMBOL s }
 | '#' '\\' _ as s
     { CHARACTER (String.get s 2) }
