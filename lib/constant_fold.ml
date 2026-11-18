@@ -6,6 +6,7 @@ let rec subst x e1 e2 =
   | Call (f, args) -> Call (f, List.map (subst x e1) args)
   | Let (y, e, body) when x = y -> Let (y, subst x e1 e, body)
   | Let (y, e, body) -> Let (y, subst x e1 e, subst x e1 body)
+  | _ -> failwith "TODO"
 
 (* subst x foo (+ x (let ((x (+ x 5))) (+ x x))) *)
 

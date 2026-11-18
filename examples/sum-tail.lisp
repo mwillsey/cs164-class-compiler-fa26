@@ -3,4 +3,4 @@
     total
     (sum-tail (sub1 n) (+ total n))))
 
-(print (sum-tail 1000000 0))
+(print (sum-tail 10000 0))
