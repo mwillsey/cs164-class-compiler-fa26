@@ -92,6 +92,7 @@ let rec interp_exp (defns : defn list) (env : environment) (exp : expr) : value
   | Do exps when List.length exps > 0 ->
       let rev_exps = List.rev_map (interp_exp defns env) exps in
       List.hd rev_exps
+  | Lambda _ -> failwith "lambdas should be desugared"
   | _ -> failwith "I can't handle that sexp"
 
 let interp (program : program) : unit =

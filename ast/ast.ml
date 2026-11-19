@@ -29,6 +29,7 @@ type expr =
   | True
   | False
   | Nil
+  | Lambda of string list * expr
 
 type defn = { name : string; args : string list; body : expr }
 type program = { defns : defn list; body : expr }
@@ -71,5 +72,10 @@ let rec s_exp_of_expr = function
   | Nil -> Lst []
   | Var x -> Sym x
   | Num n -> Num n
+  | Lambda (args, body) ->
+      Lst
+        [
+          Sym "lambda"; Lst (List.map (fun a -> Sym a) args); s_exp_of_expr body;
+        ]
 
 let string_of_expr s = s |> s_exp_of_expr |> string_of_s_exp

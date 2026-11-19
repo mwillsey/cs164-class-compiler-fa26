@@ -38,6 +38,14 @@ let prim2_of_string : string -> prim2 option =
   | _ -> None
   end
 
+let rec get_args : s_exp list -> string list =
+ fun args ->
+  begin match args with
+  | Sym v :: args -> v :: get_args args
+  | e :: _ -> raise (ParseError e)
+  | [] -> []
+  end
+
 let rec expr_of_s_exp : s_exp -> expr =
  fun s_exp ->
   begin match s_exp with
@@ -50,6 +58,8 @@ let rec expr_of_s_exp : s_exp -> expr =
       Let (var, expr_of_s_exp exp, expr_of_s_exp body)
   | Lst (Sym "do" :: exps) when List.length exps > 0 ->
       Do (List.map expr_of_s_exp exps)
+  | Lst [ Sym "lambda"; Lst args; body ] ->
+      Lambda (get_args args, expr_of_s_exp body)
   | Lst [ Sym "if"; test_s; then_s; else_s ] ->
       If (expr_of_s_exp test_s, expr_of_s_exp then_s, expr_of_s_exp else_s)
   | Lst [ Sym prim ] when Option.is_some (prim0_of_string prim) ->
@@ -66,14 +76,6 @@ let rec expr_of_s_exp : s_exp -> expr =
   end
 
 let program_of_s_exps : s_exp list -> program =
-  let rec get_args : s_exp list -> string list =
-   fun args ->
-    begin match args with
-    | Sym v :: args -> v :: get_args args
-    | e :: _ -> raise (ParseError e)
-    | [] -> []
-    end
-  in
   let get_defn : s_exp -> defn =
    fun s_exp ->
     begin match s_exp with

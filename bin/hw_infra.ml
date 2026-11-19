@@ -6,7 +6,7 @@ module I : Infra.T = struct
 
   let parse syntax s =
     begin match syntax with
-    | Infra.Lisp -> Lisp_syntax.parse s
+    | Infra.Lisp -> Lisp_syntax.parse s |> Lib.Desugar.desugar
     | Infra.Mlb -> failwith "Cannot parse .mlb files for this homework"
     end
 

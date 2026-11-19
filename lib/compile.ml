@@ -10,6 +10,7 @@ let bool_mask = 0b1111111
 let bool_tag = 0b0011111
 let pair_tag = 0b010
 let heap_mask = 0b111
+let fn_tag = 0b110
 
 let function_label s =
   let nasm_char c =
@@ -70,6 +71,14 @@ let ensure_pair op =
     Mov (Reg R8, op);
     And (Reg R8, Imm heap_mask);
     Cmp (Reg R8, Imm pair_tag);
+    Jne "error";
+  ]
+
+let ensure_fn op =
+  [
+    Mov (Reg R8, op);
+    And (Reg R8, Imm heap_mask);
+    Cmp (Reg R8, Imm fn_tag);
     Jne "error";
   ]
 
@@ -164,43 +173,49 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
   | Num n -> [ Mov (Reg Rax, operand_of_num n) ]
   | True -> [ Mov (Reg Rax, operand_of_bool true) ]
   | False -> [ Mov (Reg Rax, operand_of_bool false) ]
-  (* | Call (f, args) when is_defn defns f ->
-      let defn = get_defn defns f in
-      if List.length args = List.length defn.args then
-        if is_tail then
-          let compiled_args =
-            args
-            |> List.mapi (fun i arg ->
-                compile_exp defns env (stack_index - (8 * i)) arg false
-                @ [ Mov (stack_addr (stack_index - (8 * i)), Reg Rax) ])
-            |> List.concat
-          in
-          let moved_args =
-            args
-            |> List.mapi (fun i _ ->
-                [
-                  Mov (Reg R8, stack_addr (stack_index - (8 * i)));
-                  Mov (stack_addr ((i + 1) * -8), Reg R8);
-                ])
-            |> List.concat
-          in
-          compiled_args @ moved_args @ [ Jmp (function_label f) ]
-        else
-          let stack_base = align_stack_index (stack_index + 8) in
-          let compiled_args =
-            args
-            |> List.mapi (fun i arg ->
-                compile_exp defns env (stack_base - (8 * (i + 2))) arg false
-                @ [ Mov (stack_addr (stack_base - (8 * (i + 2))), Reg Rax) ])
-            |> List.concat
-          in
-          compiled_args
-          @ [
-              Add (Reg Rsp, Imm stack_base);
-              Call (function_label f);
-              Sub (Reg Rsp, Imm stack_base);
-            ]
-      else failwith "wrong num of args" *)
+  | Call (f, args) ->
+      if is_tail then
+        let compiled_args =
+          args
+          |> List.mapi (fun i arg ->
+              compile_exp defns env (stack_index - (8 * i)) arg false
+              @ [ Mov (stack_addr (stack_index - (8 * i)), Reg Rax) ])
+          |> List.concat
+        in
+        let moved_args =
+          args
+          |> List.mapi (fun i _ ->
+              [
+                Mov (Reg R8, stack_addr (stack_index - (8 * i)));
+                Mov (stack_addr ((i + 1) * -8), Reg R8);
+              ])
+          |> List.concat
+        in
+        compiled_args
+        @ compile_exp defns env (stack_index - (8 * List.length args)) f false
+        @ ensure_fn (Reg Rax)
+        @ [ Sub (Reg Rax, Imm fn_tag) ]
+        @ moved_args @ [ ComputedJmp (Reg Rax) ]
+      else
+        let stack_base = align_stack_index (stack_index + 8) in
+        let compiled_args =
+          args
+          |> List.mapi (fun i arg ->
+              compile_exp defns env (stack_base - (8 * (i + 2))) arg false
+              @ [ Mov (stack_addr (stack_base - (8 * (i + 2))), Reg Rax) ])
+          |> List.concat
+        in
+        compiled_args
+        @ compile_exp defns env
+            (stack_base - (8 * (List.length args + 2)))
+            f false
+        @ ensure_fn (Reg Rax)
+        @ [ Sub (Reg Rax, Imm fn_tag) ]
+        @ [
+            Add (Reg Rsp, Imm stack_base);
+            ComputedCall (Reg Rax);
+            Sub (Reg Rsp, Imm stack_base);
+          ]
   | Do exps when List.length exps > 0 ->
       List.mapi
         (fun i exp ->
@@ -225,7 +240,10 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
       @ compile_exp defns
           (Symtab.add var stack_index env)
           (stack_index - 8) body is_tail
-  | Var var -> [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
+  | Var var when Symtab.mem var env ->
+      [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
+  | Var x when is_defn defns x ->
+      [ LeaLabel (Reg Rax, function_label x); Or (Reg Rax, Imm fn_tag) ]
   | Prim2 (prim, a, b) ->
       compile_exp defns env stack_index a false
       @ [ Mov (stack_addr stack_index, Reg Rax) ]
@@ -235,6 +253,7 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
       compile_exp defns env stack_index arg false
       @ compile_prim1 stack_index prim
   | Prim0 prim -> compile_prim0 stack_index prim
+  | Lambda _ -> failwith "lambdas should be desugared"
   | _ -> raise (Stuck (s_exp_of_expr exp))
 
 let compile_defn defns defn : directive list =
@@ -243,7 +262,7 @@ let compile_defn defns defn : directive list =
     |> List.mapi (fun i arg -> (arg, -8 * (i + 1)))
     |> List.to_seq |> Symtab.of_seq
   in
-  [ Label (function_label defn.name) ]
+  [ Align 8; Label (function_label defn.name) ]
   @ compile_exp defns ftab (-8 * (List.length defn.args + 1)) defn.body true
   @ [ Ret ]
 
