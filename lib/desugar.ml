@@ -20,7 +20,8 @@ let rec desugar_expr (defns : defn list ref) (e : expr) : expr =
       let name = gensym "_lambda" in
       let defn = { name; args; body = go body } in
       defns := defn :: !defns;
-      Var name
+      Closure name
+  | Closure _ -> failwith "shouldn't happen"
 
 let desugar (program : program) : program =
   let new_defns = ref [] in

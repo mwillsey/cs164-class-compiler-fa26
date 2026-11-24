@@ -167,6 +167,17 @@ let compile_prim2 stack_index = function
         Add (Reg Rdi, Imm 16);
       ]
 
+let rec fv (bound : string list) (exp : expr) : string list =
+  match exp with
+  | Var x when not (List.mem x bound) -> [ x ]
+  | If (e1, e2, e3) -> fv bound e1 @ fv bound e2 @ fv bound e3
+  | Do es -> List.concat_map (fv bound) es
+  | Call (f, es) -> fv bound f @ List.concat_map (fv bound) es
+  | Prim1 (_, e) -> fv bound e
+  | Prim2 (_, e1, e2) -> fv bound e1 @ fv bound e2
+  | Let (v, e, body) -> fv bound e @ fv (v :: bound) body
+  | _ -> []
+
 let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
     (is_tail : bool) : directive list =
   match exp with
@@ -244,6 +255,11 @@ let rec compile_exp defns (env : int Symtab.t) (stack_index : int) (exp : expr)
       [ Mov (Reg Rax, stack_addr (Symtab.find var env)) ]
   | Var x when is_defn defns x ->
       [ LeaLabel (Reg Rax, function_label x); Or (Reg Rax, Imm fn_tag) ]
+  | Closure f ->
+      let defn = get_defn defns f in
+      let bound = defn.args @ List.map (fun d -> d.name) defns in
+      let fvs = fv bound defn.body in
+      failwith "TODO lets finish closures"
   | Prim2 (prim, a, b) ->
       compile_exp defns env stack_index a false
       @ [ Mov (stack_addr stack_index, Reg Rax) ]

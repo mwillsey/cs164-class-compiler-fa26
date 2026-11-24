@@ -5,7 +5,7 @@ type value =
   | Number of int
   | Boolean of bool
   | Pair of value * value
-  | Function of string
+  | Function of (string * value Symtab.t)
 
 type environment = value Symtab.t
 
@@ -60,16 +60,19 @@ let rec interp_exp (defns : defn list) (env : environment) (exp : expr) : value
   | True -> Boolean true
   | False -> Boolean false
   | Var x when Symtab.mem x env -> Symtab.find x env
-  | Var x when is_defn defns x -> Function x
+  | Var x when is_defn defns x -> Function (x, Symtab.empty)
+  | Closure f -> Function (f, env)
   | Call (f, args) -> (
       let fv = interp_exp defns env f in
       match fv with
-      | Function f ->
+      | Function (f, closed_env) ->
           let defn = get_defn defns f in
           if List.length args = List.length defn.args then
             let vals = List.map (interp_exp defns env) args in
             let fenv =
-              List.combine defn.args vals |> List.to_seq |> Symtab.of_seq
+              Symtab.add_seq
+                (List.combine defn.args vals |> List.to_seq)
+                closed_env
             in
             interp_exp defns fenv defn.body
           else failwith "wrong num of args"
